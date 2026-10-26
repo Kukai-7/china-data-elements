@@ -1,4 +1,4 @@
-import json, os, glob, numpy as np, pandas as pd, matplotlib
+import json, os, glob, textwrap, numpy as np, pandas as pd, matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import font_manager as fm
@@ -125,4 +125,47 @@ a2.legend(handles=[Line2D([], [], marker='o', ls='', color=BLUE, ms=8, label='Da
 title(fig, 'A national contest and a few exchanges', 'Registrations to the "Data Element ×" competition grew by half in two years; the first data exchanges opened in Guiyang, Beijing, Shanghai and the Greater Bay Area.', y=.96)
 fig.text(.05, .015, 'Data: National Data Administration and People\'s Daily; figures are lower bounds ("over"), except 2024 participants ("nearly 100,000"). Exchanges: the five main ones by opening date, not a complete list. Borders: Natural Earth.', fontsize=7, color=MID)
 fig.savefig('out/assets/competition_and_exchanges.png', facecolor=PAPER); plt.close(fig)
+
+# ------------------------------------------------------------------ 4. road to 2030: scenarios and official targets
+tg = pd.read_parquet('out/data/targets_2030.parquet')
+pj = pd.read_parquet('out/data/projections.parquet')
+fig = plt.figure(figsize=(14, 9.4))
+a1 = fig.add_axes([.05, .5, .37, .34]); a2 = fig.add_axes([.58, .5, .36, .34]); a3 = fig.add_axes([.05, .09, .91, .27])
+
+yrs = [2023, 2024, 2025]
+a1.bar(yrs, [v('data_production', y) for y in yrs], color=LIGHT, width=.55)
+for y in yrs: a1.text(y, v('data_production', y) + 3, f"{v('data_production', y):.0f}", ha='center', fontsize=8.5)
+for (name, g), c, lab in zip(pj[pj.indicator == 'data_production'].groupby('scenario', sort=False), [BLUE_SOFT, BLUE, RED], ['at 15% a year', 'at 20% a year', 'at the 2025 pace (27%)']):
+    a1.plot(g.year, g.value, color=c, lw=2, marker='o', ms=3)
+    a1.text(2030.2, g.value.iloc[-1], f"{g.value.iloc[-1]:.0f} ZB\n{lab}", va='center', fontsize=8, color=c if c != BLUE_SOFT else MID, linespacing=1.1)
+a1.set_xlim(2022.4, 2030.1); a1.set_ylim(0, 190); a1.set_xticks(range(2023, 2031)); clean(a1); a1.yaxis.grid(color='#F2F2F2', lw=.6); a1.set_axisbelow(True)
+a1.set_title('Data produced in China: what constant growth would give by 2030\n(zettabytes; bars: surveys, lines: arithmetic scenarios)', fontsize=9.5, loc='left')
+
+for name, c, ls in [('target floor, 15% a year from 2024', INK, '--'), ('plan ambition, 20% a year to 2026', RED, ':')]:
+    g = pj[(pj.indicator == 'data_industry_scale') & (pj.scenario == name)]
+    a2.plot(g.year, g.value, color=c, lw=1.6, ls=ls)
+    a2.text(g.year.iloc[-1] + .12, g.value.iloc[-1], f"{g.value.iloc[-1]:.1f}  {name.split(',')[0]}", va='center', fontsize=8, color=c)
+act = [(y, v('data_industry_scale', y)) for y in (2024, 2025)]
+a2.plot([a for a, _ in act], [b for _, b in act], color=BLUE, lw=2.4, marker='o', ms=6, zorder=4)
+for y, val in act: a2.text(y - .08, val + .3, f'{val:.2f}', ha='right', fontsize=8.5, color=BLUE)
+a2.text(2025.15, v('data_industry_scale', 2025) - .55, f"+{v('data_industry_growth', 2025):.1f}% in 2025:\nabove the 15% floor,\nbelow the 20% ambition", fontsize=8, color=BLUE, va='top', linespacing=1.15)
+a2.set_xlim(2023.6, 2030.6); a2.set_ylim(4, 13); a2.set_xticks(range(2024, 2030)); clean(a2); a2.yaxis.grid(color='#F2F2F2', lw=.6); a2.set_axisbelow(True)
+a2.set_title('Data industry against its targets\n(trillion yuan; blue: reported, lines: paths implied by the targets)', fontsize=9.5, loc='left')
+
+a3.axhline(0, color=LIGHT, lw=1.2, zorder=1)
+AREA = {'Data market': RED, 'AI': BLUE, 'Infrastructure': INK, 'Public data': MID, 'Digital economy': RED}
+ys = sorted(tg.target_year.unique())
+xs = {y: i for i, y in enumerate(ys)}
+for y, g in tg.groupby('target_year'):
+    x = xs[y]
+    a3.scatter(x, 0, s=60, color=RED if y <= 2030 else MID, zorder=3)
+    a3.text(x, .14, str(y), ha='center', fontsize=11, weight='bold')
+    for k, (_, r) in enumerate(g.iterrows()):
+        a3.text(x, -.16 - k * .42, f"{r.area}\n{textwrap.fill(r.target, 30)}", ha='center', va='top', fontsize=7.6, color=AREA.get(r.area, INK), linespacing=1.15)
+a3.set_xlim(-.6, len(ys) - .4); a3.set_ylim(-1.15, .3); a3.axis('off')
+fig.text(.05, .395, 'Official targets, as published', fontsize=10, weight='bold')
+title(fig, 'Road to 2030', 'Where the data economy is heading if recent growth holds, and what the State has committed to. Scenarios are arithmetic, not forecasts.', y=.96)
+fig.text(.05, .015, 'Data: National Data Administration surveys; NDDRI via China Daily (2024) and Xinhua (2025) for the data industry; targets from the State Council, NDRC, NDA, MIIT and the 15th Five-Year Plan outline. '
+         '\nScenarios apply constant growth to the last reported value; they ignore saturation, definition changes and revisions.', fontsize=7, color=MID, va='bottom')
+fig.savefig('out/assets/vision_2030.png', facecolor=PAPER); plt.close(fig)
 print(sorted(os.listdir('out/assets')))

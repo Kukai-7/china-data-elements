@@ -56,7 +56,13 @@ I = [('data_production', 2023, 32.85, 'ZB', 'National data resources survey 2023
      ('data_assets_booked', 2025, 37.86, '100 million yuan', 'SAIF data asset tracking report, via Yicai, 24 June 2026'),
      ('data_assets_booked_intangible', 2025, 31.20, '100 million yuan', 'SAIF data asset tracking report, via Yicai, 24 June 2026'),
      ('data_assets_booked_development', 2025, 6.44, '100 million yuan', 'SAIF data asset tracking report, via Yicai, 24 June 2026'),
-     ('data_assets_booked_inventory', 2025, 0.22, '100 million yuan', 'SAIF data asset tracking report, via Yicai, 24 June 2026')]
+     ('data_assets_booked_inventory', 2025, 0.22, '100 million yuan', 'SAIF data asset tracking report, via Yicai, 24 June 2026'),
+     ('data_industry_scale', 2024, 5.86, 'trillion yuan', 'National Data Development Research Institute, via China Daily, 15 August 2025'),
+     ('data_industry_scale', 2025, 6.78, 'trillion yuan', 'Xinhua, 28 August 2026 (Big Data Expo, Guiyang)'),
+     ('data_industry_growth', 2025, 15.7, '%', 'Xinhua, 28 August 2026 (Big Data Expo, Guiyang)'),
+     ('high_quality_datasets', 2026, 126000, 'datasets (lower bound, August 2026)', 'Xinhua, 28 August 2026 (Big Data Expo, Guiyang)'),
+     ('high_quality_datasets_volume', 2026, 1815, 'PB (lower bound, August 2026)', 'Xinhua, 28 August 2026 (Big Data Expo, Guiyang)'),
+     ('digital_economy_core_share_of_gdp', 2025, 10.5, '%', '15th Five-Year Plan outline (March 2026), main indicators')]
 ind = pd.DataFrame(I, columns=['indicator', 'year', 'value', 'unit', 'source'])
 ind.to_parquet(f'{OUT}/indicators.parquet', index=False)
 
@@ -74,5 +80,42 @@ C = {'Guiyang': (26.647, 106.630), 'Beijing': (39.904, 116.407), 'Shanghai': (31
 pl = pol[pol.kind.isin(['Exchange', 'Competition'])][['city', 'kind', 'event', 'year']].copy()
 pl['latitude'] = pl.city.map(lambda c: C[c][0]); pl['longitude'] = pl.city.map(lambda c: C[c][1])
 pl.to_parquet(f'{OUT}/places.parquet', index=False)
-json.dump(dict(events=len(pol), indicators=len(ind)), open('out/stats.json', 'w'))
+# ------------------------------------------------------------------ road to 2030: official targets (as published, not assessed)
+T = [(2026, 'Data market', 'Data industry grows over 20% a year; data trading volume doubles; 300+ typical application scenarios',
+      '数据产业年均增速超过20%，数据交易规模倍增，打造300个以上典型应用场景', 20.0, '% a year (data industry growth)', '"Data Element ×" three-year action plan', 'NDA and 16 departments', '2024-01-04', True),
+     (2027, 'AI', 'New-generation intelligent terminals and AI agents used by over 70%', '新一代智能终端、智能体等应用普及率超70%',
+      70.0, '% penetration', 'Opinions on the "AI+" action', 'State Council', '2025-08-26', True),
+     (2028, 'Infrastructure', 'Over 100 trusted data spaces built', '建成100个以上可信数据空间',
+      100.0, 'trusted data spaces', 'Trusted data space action plan (2024 to 2028)', 'NDA', '2024-11-23', True),
+     (2029, 'Data market', 'Data industry grows over 15% a year (compound, to 2029)', '数据产业规模年均复合增长率超过15%',
+      15.0, '% a year (compound)', 'Guiding opinions on high-quality development of the data industry', 'NDRC, NDA and other departments', '2024-12-30', True),
+     (2029, 'Infrastructure', 'Institutions to build and run the national data infrastructure basically in place', '国家数据基础设施建设和运营体制机制基本建立',
+      None, '', 'Guidelines on building the national data infrastructure', 'NDRC, NDA, MIIT', '2025-01-06', False),
+     (2030, 'Public data', 'System for developing and using public data resources fully built', '公共数据资源开发利用体系全面建成',
+      None, '', 'Opinions on accelerating the development and use of public data resources', 'CPC General Office and State Council General Office', '2024-09-21', False),
+     (2030, 'Digital economy', 'Core digital economy industries at 12.5% of GDP (10.5% in 2025)', '数字经济核心产业增加值占GDP比重达12.5%',
+      12.5, '% of GDP', '15th Five-Year Plan outline, main indicators', 'National People\'s Congress', '2026-03', True),
+     (2030, 'AI', 'New-generation intelligent terminals and AI agents used by over 90%', '新一代智能终端、智能体等应用普及率超90%',
+      90.0, '% penetration', 'Opinions on the "AI+" action', 'State Council', '2025-08-26', True),
+     (2035, 'AI', 'China fully enters a new stage of intelligent economy and society', '全面步入智能经济和智能社会发展新阶段',
+      None, '', 'Opinions on the "AI+" action', 'State Council', '2025-08-26', False)]
+tg = pd.DataFrame(T, columns=['target_year', 'area', 'target', 'target_zh', 'target_value', 'target_unit', 'document', 'issuer', 'announced', 'quantified'])
+tg.to_parquet(f'{OUT}/targets_2030.parquet', index=False)
+
+# ------------------------------------------------------------------ scenarios to 2030: arithmetic paths, not forecasts
+S = []
+base = 52.26                                                     # data produced in 2025, ZB
+for name, g in [('15% a year', .15), ('20% a year', .20), ('2025 pace, 27.3% a year', .2728)]:
+    for y in range(2025, 2031):
+        S.append(('data_production', name, y, round(base * (1 + g) ** (y - 2025), 2), 'ZB', 'constant growth from the 2025 survey value'))
+for y in range(2024, 2030):                                      # official floor: over 15% a year from 2024 to 2029
+    S.append(('data_industry_scale', 'target floor, 15% a year from 2024', y, round(5.86 * 1.15 ** (y - 2024), 2), 'trillion yuan', 'compound 15% from the 2024 value'))
+for y in range(2024, 2027):                                      # "Data Element ×" ambition: over 20% a year to 2026
+    S.append(('data_industry_scale', 'plan ambition, 20% a year to 2026', y, round(5.86 * 1.20 ** (y - 2024), 2), 'trillion yuan', 'compound 20% from the 2024 value'))
+for y in range(2025, 2031):                                      # straight line to the 15th plan target
+    S.append(('digital_economy_core_share_of_gdp', 'straight line to the 2030 target', y, round(10.5 + .4 * (y - 2025), 1), '% of GDP', 'linear from 10.5% (2025) to 12.5% (2030)'))
+proj = pd.DataFrame(S, columns=['indicator', 'scenario', 'year', 'value', 'unit', 'method'])
+proj.to_parquet(f'{OUT}/projections.parquet', index=False)
+
+json.dump(dict(events=len(pol), indicators=len(ind), targets=len(tg), projections=len(proj)), open('out/stats.json', 'w'))
 print(pol.kind.value_counts().to_dict(), len(ind))
